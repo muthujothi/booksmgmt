@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Book Collection</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>My Book Collection</h1>
+        <div class="controls">
+            <input type="text" id="searchInput" placeholder="Search by title or author...">
+            <select id="genreFilter">
+                <option value="">All Genres</option>
+            </select>
+            <select id="readStatusFilter">
+                <option value="">All Status</option>
+                <option value="READ">Read</option>
+                <option value="READING">Reading</option>
+                <option value="UNREAD">Unread</option>
+            </select>
+            <button id="addBookBtn" class="btn btn-primary">+ Add Book</button>
+        </div>
+    </header>
+
+    <main>
+        <div id="booksGrid" class="books-grid"></div>
+        <div id="emptyState" class="empty-state" style="display:none;">
+            <p>No books found. Add your first book to get started!</p>
+        </div>
+    </main>
+
+    <!-- Book Modal -->
+    <div id="bookModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Add Book</h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <form id="bookForm">
+                <input type="hidden" id="bookId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="title">Title *</label>
+                        <input type="text" id="title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="author">Author</label>
+                        <input type="text" id="author">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="genre">Genre <small style="color:#999;font-weight:normal">(comma-separated, e.g. Fiction, Thriller)</small></label>
+                        <input type="text" id="genre">
+                    </div>
+                    <div class="form-group">
+                        <label for="isbn">ISBN</label>
+                        <input type="text" id="isbn">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="publisher">Publisher</label>
+                        <input type="text" id="publisher">
+                    </div>
+                    <div class="form-group">
+                        <label for="year">Year</label>
+                        <input type="number" id="year" min="1000" max="2100">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="pages">Pages</label>
+                        <input type="number" id="pages" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="location">Location (shelf/room)</label>
+                        <input type="text" id="location">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rating">Rating</label>
+                        <div class="star-rating" id="starRating">
+                            <span class="star" data-value="1">&#9733;</span>
+                            <span class="star" data-value="2">&#9733;</span>
+                            <span class="star" data-value="3">&#9733;</span>
+                            <span class="star" data-value="4">&#9733;</span>
+                            <span class="star" data-value="5">&#9733;</span>
+                        </div>
+                        <input type="hidden" id="rating">
+                    </div>
+                    <div class="form-group">
+                        <label for="readStatus">Reading Status</label>
+                        <select id="readStatus">
+                            <option value="UNREAD">Unread</option>
+                            <option value="READING">Reading</option>
+                            <option value="READ">Read</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes</label>
+                    <textarea id="notes" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="coverImage">Cover Image (JPEG/PNG)</label>
+                    <input type="file" id="coverImage" accept="image/jpeg,image/png">
+                    <div id="imagePreview" class="image-preview"></div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation -->
+    <div id="deleteModal" class="modal" style="display:none;">
+        <div class="modal-content modal-small">
+            <h3>Delete Book</h3>
+            <p>Are you sure you want to delete this book?</p>
+            <div class="form-actions">
+                <button class="btn btn-secondary" id="cancelDelete">Cancel</button>
+                <button class="btn btn-danger" id="confirmDelete">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
