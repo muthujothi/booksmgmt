@@ -71,6 +71,15 @@ header h1 {
     background: #7f8c8d;
 }
 
+.btn-success {
+    background: #27ae60;
+    color: white;
+}
+
+.btn-success:hover {
+    background: #219a52;
+}
+
 .btn-danger {
     background: #e74c3c;
     color: white;
@@ -282,6 +291,16 @@ main {
     margin-bottom: 1.25rem;
 }
 
+.queued-count {
+    background: #27ae60;
+    color: white;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+}
+
 .modal-close {
     background: none;
     border: none;
@@ -370,6 +389,36 @@ main {
     max-width: 150px;
     max-height: 150px;
     border-radius: 6px;
+    object-fit: cover;
+}
+
+.cover-options {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.cover-option {
+    cursor: pointer;
+    border: 3px solid transparent;
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.cover-option:hover {
+    border-color: #3498db;
+}
+
+.cover-option.selected {
+    border-color: #2ecc71;
+}
+
+.cover-option img {
+    display: block;
+    width: 100px;
+    height: 140px;
     object-fit: cover;
 }
 
