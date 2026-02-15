@@ -121,7 +121,7 @@ function renderCard(book) {
     if (book.location) metaParts.push(escapeHtml(book.location));
 
     return `
-        <div class="book-card">
+        <div class="book-card" onclick="navigateToBook(${book.id}, event)">
             ${coverHtml}
             <div class="book-info">
                 <h3>${escapeHtml(book.title)}</h3>
@@ -510,6 +510,11 @@ async function fetchBookDetails(title, author) {
     }
 
     lastFetchedQuery = { title, author };
+}
+
+function navigateToBook(id, event) {
+    if (event.target.closest('.book-actions')) return;
+    window.location.href = `/book/${id}`;
 }
 
 function debounce(fn, delay) {
