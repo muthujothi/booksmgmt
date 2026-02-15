@@ -36,6 +36,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h2 id="modalTitle">Add Book</h2>
+                <span id="queuedCount" class="queued-count" style="display:none;"></span>
                 <button class="modal-close" id="modalClose">&times;</button>
             </div>
             <form id="bookForm">
@@ -109,9 +110,11 @@
                     <label for="coverImage">Cover Image (JPEG/PNG)</label>
                     <input type="file" id="coverImage" accept="image/jpeg,image/png">
                     <div id="imagePreview" class="image-preview"></div>
+                    <div id="coverOptions" class="cover-options"></div>
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-success" id="addAnotherBtn" style="display:none;">Save &amp; Add Another</button>
                     <button type="submit" class="btn btn-primary" id="saveBtn">Save</button>
                 </div>
             </form>
