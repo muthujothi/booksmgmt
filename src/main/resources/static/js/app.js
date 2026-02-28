@@ -155,10 +155,23 @@ function updateStars(value) {
     });
 }
 
+function showFormError(msg) {
+    const el = document.getElementById('formError');
+    el.textContent = msg;
+    el.style.display = '';
+}
+
+function clearFormError() {
+    const el = document.getElementById('formError');
+    el.textContent = '';
+    el.style.display = 'none';
+}
+
 function openModal(book) {
     const modal = document.getElementById('bookModal');
     const form = document.getElementById('bookForm');
     form.reset();
+    clearFormError();
     document.getElementById('imagePreview').innerHTML = '';
     document.getElementById('coverOptions').innerHTML = '';
     document.getElementById('rating').value = '';
@@ -269,6 +282,9 @@ async function handleSubmit(e) {
             closeModal();
             loadBooks();
             loadGenres();
+        } else {
+            const data = await res.json();
+            showFormError(data.error || 'Failed to save books.');
         }
     }
 }
@@ -298,13 +314,31 @@ function captureBookFromForm() {
     return obj;
 }
 
-function saveAndAddAnother() {
+async function saveAndAddAnother() {
     const title = document.getElementById('title').value.trim();
     if (!title) {
         document.getElementById('title').focus();
         return;
     }
 
+    // Check against pending queue (case-insensitive)
+    const titleLower = title.toLowerCase();
+    if (pendingBooks.some(b => b.title.toLowerCase() === titleLower)) {
+        showFormError(`"${title}" is already in the queue.`);
+        return;
+    }
+
+    // Check against database
+    const res = await fetch(`${API}?search=${encodeURIComponent(title)}`);
+    if (res.ok) {
+        const books = await res.json();
+        if (books.some(b => b.title.toLowerCase() === titleLower)) {
+            showFormError(`A book with this title already exists.`);
+            return;
+        }
+    }
+
+    clearFormError();
     const book = captureBookFromForm();
     pendingBooks.push(book);
     updateQueuedCount();

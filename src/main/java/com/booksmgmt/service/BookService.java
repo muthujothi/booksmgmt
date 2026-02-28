@@ -83,6 +83,10 @@ public class BookService {
                            String publisher, Integer year, Integer pages, String location,
                            String readStatus, Integer rating, String notes,
                            MultipartFile coverImage, String coverImageUrl) throws IOException {
+        if (bookRepository.existsByTitleIgnoreCase(title)) {
+            throw new IllegalArgumentException("A book with this title already exists.");
+        }
+
         Book book = new Book();
         book.setTitle(title);
         book.setAuthor(author);
@@ -110,6 +114,9 @@ public class BookService {
     public List<Book> createBooks(List<BookRequest> requests) {
         List<Book> saved = new ArrayList<>();
         for (BookRequest req : requests) {
+            if (bookRepository.existsByTitleIgnoreCase(req.title)) {
+                throw new IllegalArgumentException("A book with this title already exists: " + req.title);
+            }
             Book book = new Book();
             book.setTitle(req.title);
             book.setAuthor(req.author);
