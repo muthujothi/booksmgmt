@@ -109,6 +109,7 @@ main {
     transition: transform 0.2s, box-shadow 0.2s;
     display: flex;
     flex-direction: column;
+    cursor: pointer;
 }
 
 .book-card:hover {
@@ -420,6 +421,16 @@ main {
     width: 100px;
     height: 140px;
     object-fit: cover;
+}
+
+.form-error {
+    background: #fdedec;
+    color: #e74c3c;
+    border: 1px solid #f5c6cb;
+    border-radius: 6px;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
 }
 
 .form-actions {
