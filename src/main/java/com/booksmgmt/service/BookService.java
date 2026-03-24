@@ -2,6 +2,8 @@ package com.booksmgmt.service;
 
 import com.booksmgmt.model.Book;
 import com.booksmgmt.repository.BookRepository;
+import com.booksmgmt.repository.MemoryRepository;
+import com.booksmgmt.repository.QuoteRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,7 +20,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -33,11 +38,17 @@ public class BookService {
     );
 
     private final BookRepository bookRepository;
+    private final QuoteRepository quoteRepository;
+    private final MemoryRepository memoryRepository;
     private final Path uploadDir;
 
     public BookService(BookRepository bookRepository,
+                       QuoteRepository quoteRepository,
+                       MemoryRepository memoryRepository,
                        @Value("${app.upload.dir:./uploads/covers}") String uploadPath) {
         this.bookRepository = bookRepository;
+        this.quoteRepository = quoteRepository;
+        this.memoryRepository = memoryRepository;
         this.uploadDir = Paths.get(uploadPath).toAbsolutePath().normalize();
         try {
             Files.createDirectories(this.uploadDir);
@@ -50,7 +61,7 @@ public class BookService {
         return bookRepository.findById(id);
     }
 
-    public List<Book> searchBooks(String search, String genre, String readStatus) {
+    public List<Book> searchBooks(String search, String genre, String readStatus, boolean noLocation) {
         List<Book> books = bookRepository.findAllSortedByRating();
 
         return books.stream()
@@ -65,7 +76,20 @@ public class BookService {
                             .anyMatch(g -> g.equalsIgnoreCase(genre));
                 })
                 .filter(b -> readStatus == null || readStatus.isEmpty() || readStatus.equals(b.getReadStatus()))
+                .filter(b -> !noLocation || (b.getLocation() == null || b.getLocation().isBlank()))
                 .collect(Collectors.toList());
+    }
+
+    public List<Book> getMissingLocationBooks() {
+        return bookRepository.findBooksWithMissingLocation();
+    }
+
+    @Transactional
+    public int bulkUpdateLocation(List<Long> ids, String location) {
+        List<Book> books = bookRepository.findAllById(ids);
+        books.forEach(b -> b.setLocation(location));
+        bookRepository.saveAll(books);
+        return books.size();
     }
 
     public List<String> getDistinctGenres() {
@@ -83,6 +107,10 @@ public class BookService {
                            String publisher, Integer year, Integer pages, String location,
                            String readStatus, Integer rating, String notes,
                            MultipartFile coverImage, String coverImageUrl) throws IOException {
+        if (bookRepository.existsByTitleIgnoreCase(title)) {
+            throw new IllegalArgumentException("A book with this title already exists.");
+        }
+
         Book book = new Book();
         book.setTitle(title);
         book.setAuthor(author);
@@ -110,6 +138,9 @@ public class BookService {
     public List<Book> createBooks(List<BookRequest> requests) {
         List<Book> saved = new ArrayList<>();
         for (BookRequest req : requests) {
+            if (bookRepository.existsByTitleIgnoreCase(req.title)) {
+                throw new IllegalArgumentException("A book with this title already exists: " + req.title);
+            }
             Book book = new Book();
             book.setTitle(req.title);
             book.setAuthor(req.author);
@@ -165,8 +196,11 @@ public class BookService {
         return bookRepository.save(book);
     }
 
+    @Transactional
     public boolean deleteBook(Long id) {
         return bookRepository.findById(id).map(book -> {
+            quoteRepository.deleteByBookId(id);
+            memoryRepository.deleteByBookId(id);
             deleteImageFile(book.getCoverImagePath());
             bookRepository.delete(book);
             return true;
@@ -233,6 +267,59 @@ public class BookService {
                 }
             } catch (IOException ignored) {
             }
+        }
+    }
+
+    public LibraryStats getStats() {
+        List<Book> all = bookRepository.findAll();
+
+        long total   = all.size();
+        long read    = all.stream().filter(b -> "READ".equals(b.getReadStatus())).count();
+        long reading = all.stream().filter(b -> "READING".equals(b.getReadStatus())).count();
+        long unread  = all.stream().filter(b -> "UNREAD".equals(b.getReadStatus())).count();
+
+        Map<String, Long> byGenre = all.stream()
+            .map(Book::getGenre)
+            .filter(g -> g != null && !g.isEmpty())
+            .flatMap(g -> Arrays.stream(g.split(",")))
+            .map(String::trim)
+            .filter(g -> !g.isEmpty())
+            .collect(Collectors.groupingBy(g -> g, Collectors.counting()))
+            .entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                .thenComparing(Map.Entry.comparingByKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                (a, b) -> a, LinkedHashMap::new));
+
+        Map<String, Long> topAuthors = all.stream()
+            .filter(b -> b.getAuthor() != null && !b.getAuthor().isBlank())
+            .collect(Collectors.groupingBy(Book::getAuthor, Collectors.counting()))
+            .entrySet().stream()
+            .sorted(Map.Entry.<String, Long>comparingByValue(Comparator.reverseOrder())
+                .thenComparing(Map.Entry.comparingByKey()))
+            .limit(8)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                (a, b) -> a, LinkedHashMap::new));
+
+        return new LibraryStats(total, read, reading, unread, byGenre, topAuthors);
+    }
+
+    public static class LibraryStats {
+        public final long total;
+        public final long read;
+        public final long reading;
+        public final long unread;
+        public final Map<String, Long> byGenre;
+        public final Map<String, Long> topAuthors;
+
+        public LibraryStats(long total, long read, long reading, long unread,
+                            Map<String, Long> byGenre, Map<String, Long> topAuthors) {
+            this.total      = total;
+            this.read       = read;
+            this.reading    = reading;
+            this.unread     = unread;
+            this.byGenre    = byGenre;
+            this.topAuthors = topAuthors;
         }
     }
 

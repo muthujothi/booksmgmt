@@ -13,4 +13,9 @@ public interface BookRepository extends JpaRepository<Book, Long> {
     @Query("SELECT b FROM Book b ORDER BY CASE WHEN b.rating IS NULL THEN 1 ELSE 0 END, b.rating DESC")
     List<Book> findAllSortedByRating();
 
+    boolean existsByTitleIgnoreCase(String title);
+
+    @Query("SELECT b FROM Book b WHERE b.location IS NULL OR b.location = '' ORDER BY b.id DESC")
+    List<Book> findBooksWithMissingLocation();
+
 }

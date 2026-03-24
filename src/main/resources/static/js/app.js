@@ -3,10 +3,13 @@ let deleteBookId = null;
 let googleBooksThumbnailUrl = null;
 let pendingBooks = [];
 let lastFetchedQuery = null;
+let assignMode = false;
+let selectedIds = new Set();
 
 document.addEventListener('DOMContentLoaded', () => {
     loadBooks();
     loadGenres();
+    loadStats();
 
     document.getElementById('addBookBtn').addEventListener('click', () => openModal());
     document.getElementById('modalClose').addEventListener('click', closeModal);
@@ -19,6 +22,8 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('searchInput').addEventListener('input', debounce(loadBooks, 300));
     document.getElementById('genreFilter').addEventListener('change', loadBooks);
     document.getElementById('readStatusFilter').addEventListener('change', loadBooks);
+    document.getElementById('locationFilter').addEventListener('change', loadBooks);
+    document.getElementById('assignLocationsBtn').addEventListener('click', enterAssignMode);
 
     // Star rating
     document.querySelectorAll('#starRating .star').forEach(star => {
@@ -71,14 +76,18 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadBooks() {
+    if (assignMode) return;
+
     const params = new URLSearchParams();
     const search = document.getElementById('searchInput').value.trim();
     const genre = document.getElementById('genreFilter').value;
     const readStatus = document.getElementById('readStatusFilter').value;
+    const noLocation = document.getElementById('locationFilter').value === 'no-location';
 
     if (search) params.set('search', search);
     if (genre) params.set('genre', genre);
     if (readStatus) params.set('readStatus', readStatus);
+    if (noLocation) params.set('noLocation', 'true');
 
     const url = params.toString() ? `${API}?${params}` : API;
     const res = await fetch(url);
@@ -120,8 +129,23 @@ function renderCard(book) {
     if (book.year) metaParts.push(book.year);
     if (book.location) metaParts.push(escapeHtml(book.location));
 
+    const isSelected = assignMode && selectedIds.has(book.id);
+    const cardClass = `book-card${isSelected ? ' selected' : ''}`;
+    const cardOnclick = assignMode
+        ? `toggleBookSelection(${book.id})`
+        : `navigateToBook(${book.id}, event)`;
+    const checkboxHtml = assignMode
+        ? `<div class="card-checkbox">${isSelected ? '✓' : ''}</div>`
+        : '';
+    const actionsHtml = assignMode ? '' : `
+                <div class="book-actions">
+                    <button class="edit-btn" onclick="editBook(${book.id})">Edit</button>
+                    <button class="delete-btn" onclick="confirmDeleteBook(${book.id})">Delete</button>
+                </div>`;
+
     return `
-        <div class="book-card">
+        <div class="${cardClass}" onclick="${cardOnclick}">
+            ${checkboxHtml}
             ${coverHtml}
             <div class="book-info">
                 <h3>${escapeHtml(book.title)}</h3>
@@ -130,10 +154,7 @@ function renderCard(book) {
                 ${metaParts.length ? `<div class="meta">${metaParts.join(' &bull; ')}</div>` : ''}
                 ${statusBadge}
                 ${notesHtml}
-                <div class="book-actions">
-                    <button class="edit-btn" onclick="editBook(${book.id})">Edit</button>
-                    <button class="delete-btn" onclick="confirmDeleteBook(${book.id})">Delete</button>
-                </div>
+                ${actionsHtml}
             </div>
         </div>
     `;
@@ -155,10 +176,23 @@ function updateStars(value) {
     });
 }
 
+function showFormError(msg) {
+    const el = document.getElementById('formError');
+    el.textContent = msg;
+    el.style.display = '';
+}
+
+function clearFormError() {
+    const el = document.getElementById('formError');
+    el.textContent = '';
+    el.style.display = 'none';
+}
+
 function openModal(book) {
     const modal = document.getElementById('bookModal');
     const form = document.getElementById('bookForm');
     form.reset();
+    clearFormError();
     document.getElementById('imagePreview').innerHTML = '';
     document.getElementById('coverOptions').innerHTML = '';
     document.getElementById('rating').value = '';
@@ -252,6 +286,7 @@ async function handleSubmit(e) {
             closeModal();
             loadBooks();
             loadGenres();
+            loadStats();
         }
     } else {
         // Add mode — batch JSON submit
@@ -269,6 +304,10 @@ async function handleSubmit(e) {
             closeModal();
             loadBooks();
             loadGenres();
+            loadStats();
+        } else {
+            const data = await res.json();
+            showFormError(data.error || 'Failed to save books.');
         }
     }
 }
@@ -298,13 +337,31 @@ function captureBookFromForm() {
     return obj;
 }
 
-function saveAndAddAnother() {
+async function saveAndAddAnother() {
     const title = document.getElementById('title').value.trim();
     if (!title) {
         document.getElementById('title').focus();
         return;
     }
 
+    // Check against pending queue (case-insensitive)
+    const titleLower = title.toLowerCase();
+    if (pendingBooks.some(b => b.title.toLowerCase() === titleLower)) {
+        showFormError(`"${title}" is already in the queue.`);
+        return;
+    }
+
+    // Check against database
+    const res = await fetch(`${API}?search=${encodeURIComponent(title)}`);
+    if (res.ok) {
+        const books = await res.json();
+        if (books.some(b => b.title.toLowerCase() === titleLower)) {
+            showFormError(`A book with this title already exists.`);
+            return;
+        }
+    }
+
+    clearFormError();
     const book = captureBookFromForm();
     pendingBooks.push(book);
     updateQueuedCount();
@@ -348,6 +405,7 @@ async function handleDelete() {
         closeDeleteModal();
         loadBooks();
         loadGenres();
+        loadStats();
     }
 }
 
@@ -364,6 +422,253 @@ async function loadGenres() {
         select.appendChild(opt);
     });
     select.value = current;
+}
+
+const GENRE_PALETTE = [
+    { bg: '#dff5e3', text: '#1e7e34' },
+    { bg: '#dbeafe', text: '#1d4ed8' },
+    { bg: '#fde8d8', text: '#c05621' },
+    { bg: '#f3e8ff', text: '#6d28d9' },
+    { bg: '#fef9c3', text: '#92400e' },
+    { bg: '#fce7f3', text: '#9d174d' },
+    { bg: '#e0f2fe', text: '#075985' },
+    { bg: '#dcfce7', text: '#166534' },
+    { bg: '#fff1f2', text: '#9f1239' },
+    { bg: '#f0fdf4', text: '#15803d' },
+    { bg: '#ede9fe', text: '#5b21b6' },
+    { bg: '#ffedd5', text: '#9a3412' },
+];
+
+const AUTHOR_PALETTE = [
+    { bg: '#e2e8f0', text: '#1e293b' },
+    { bg: '#fee2e2', text: '#991b1b' },
+    { bg: '#d1fae5', text: '#065f46' },
+    { bg: '#e0e7ff', text: '#3730a3' },
+    { bg: '#fef3c7', text: '#78350f' },
+    { bg: '#fce7f3', text: '#831843' },
+    { bg: '#cffafe', text: '#155e75' },
+    { bg: '#f1f5f9', text: '#334155' },
+];
+
+function chipColor(name, palette) {
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return palette[hash % palette.length];
+}
+
+function renderChips(entries, palette, onclick, container, limit) {
+    const visible = entries.slice(0, limit);
+    const hidden  = entries.slice(limit);
+
+    const chips = visible.map(([name, count]) => {
+        const c = chipColor(name, palette);
+        return `<span class="stats-chip" style="background:${c.bg};color:${c.text};" onclick="${onclick}('${escapeHtml(name)}')">${escapeHtml(name)}<span class="chip-count" style="background:${c.text};color:${c.bg};">${count}</span></span>`;
+    }).join('');
+
+    const toggle = hidden.length > 0
+        ? `<span class="stats-show-toggle" onclick="toggleChips(this)" data-expanded="false">+${hidden.length} more ▾</span>`
+        : '';
+
+    const hiddenChips = hidden.map(([name, count]) => {
+        const c = chipColor(name, palette);
+        return `<span class="stats-chip" style="background:${c.bg};color:${c.text};display:none;" onclick="${onclick}('${escapeHtml(name)}')">${escapeHtml(name)}<span class="chip-count" style="background:${c.text};color:${c.bg};">${count}</span></span>`;
+    }).join('');
+
+    container.innerHTML = chips + hiddenChips + toggle;
+}
+
+function toggleChips(toggleEl) {
+    const expanded = toggleEl.dataset.expanded === 'true';
+    const hidden = toggleEl.parentElement.querySelectorAll('.stats-chip[style*="display:none"]');
+    const allHidden = toggleEl.parentElement.querySelectorAll('.stats-chip[style*="display:none"], .stats-chip[style*="display: none"]');
+
+    if (!expanded) {
+        toggleEl.parentElement.querySelectorAll('.stats-chip').forEach(chip => {
+            chip.style.display = '';
+        });
+        toggleEl.dataset.expanded = 'true';
+        const total = toggleEl.parentElement.querySelectorAll('.stats-chip').length;
+        toggleEl.textContent = 'Show less ▴';
+    } else {
+        let count = 0;
+        toggleEl.parentElement.querySelectorAll('.stats-chip').forEach((chip, i) => {
+            if (i >= 8) { chip.style.display = 'none'; count++; }
+        });
+        toggleEl.dataset.expanded = 'false';
+        toggleEl.textContent = `+${count} more ▾`;
+    }
+}
+
+async function loadStats() {
+    const res = await fetch(`${API}/stats`);
+    if (!res.ok) return;
+    const stats = await res.json();
+
+    document.getElementById('statTotal').textContent   = stats.total;
+    document.getElementById('statRead').textContent    = stats.read;
+    document.getElementById('statReading').textContent = stats.reading;
+    document.getElementById('statUnread').textContent  = stats.unread;
+
+    const genreRow    = document.getElementById('genreStatsRow');
+    const genreEntries = Object.entries(stats.byGenre || {});
+    if (genreEntries.length > 0) {
+        renderChips(genreEntries, GENRE_PALETTE, 'filterByGenre',
+            document.getElementById('genreChips'), 8);
+        genreRow.style.display = '';
+    } else {
+        genreRow.style.display = 'none';
+    }
+
+    const authorRow    = document.getElementById('authorStatsRow');
+    const authorEntries = Object.entries(stats.topAuthors || {});
+    if (authorEntries.length > 0) {
+        renderChips(authorEntries, AUTHOR_PALETTE, 'filterByAuthor',
+            document.getElementById('authorChips'), 8);
+        authorRow.style.display = '';
+    } else {
+        authorRow.style.display = 'none';
+    }
+
+    document.getElementById('statsSection').style.display = stats.total > 0 ? '' : 'none';
+}
+
+async function enterAssignMode() {
+    const res = await fetch(`${API}/missing-location`);
+    if (!res.ok) return;
+    const books = await res.json();
+
+    assignMode = true;
+    selectedIds = new Set();
+
+    const grid = document.getElementById('booksGrid');
+    const empty = document.getElementById('emptyState');
+    const banner = document.getElementById('assignBanner');
+    const subtext = document.getElementById('assignBannerSubtext');
+
+    if (books.length === 0) {
+        grid.innerHTML = '';
+        empty.style.display = 'block';
+        empty.querySelector('p').textContent = 'All books have a location assigned. Nothing to do here!';
+    } else {
+        empty.style.display = 'none';
+        grid.innerHTML = books.map(book => renderCard(book)).join('');
+        subtext.textContent = `${books.length} book${books.length !== 1 ? 's' : ''} without a location — newest first. Click to select.`;
+    }
+
+    banner.style.display = '';
+    document.getElementById('floatingBar').style.display = '';
+    document.getElementById('statsSection').style.display = 'none';
+    updateFloatingBar();
+}
+
+function exitAssignMode() {
+    assignMode = false;
+    selectedIds = new Set();
+    document.getElementById('assignBanner').style.display = 'none';
+    document.getElementById('floatingBar').style.display = 'none';
+    document.getElementById('locationInput').value = '';
+    document.getElementById('selectAllCheckbox').checked = false;
+    document.getElementById('emptyState').querySelector('p').textContent =
+        'No books found. Add your first book to get started!';
+    loadBooks();
+    loadStats();
+}
+
+function toggleBookSelection(id) {
+    if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+    } else {
+        selectedIds.add(id);
+    }
+    // Re-render just the affected card
+    const cards = document.querySelectorAll('#booksGrid .book-card');
+    cards.forEach(card => {
+        const onclick = card.getAttribute('onclick');
+        if (onclick && onclick.includes(`(${id})`)) {
+            const isSelected = selectedIds.has(id);
+            card.classList.toggle('selected', isSelected);
+            const cb = card.querySelector('.card-checkbox');
+            if (cb) cb.textContent = isSelected ? '✓' : '';
+        }
+    });
+    updateFloatingBar();
+}
+
+function toggleSelectAll(checked) {
+    const cards = document.querySelectorAll('#booksGrid .book-card');
+    cards.forEach(card => {
+        const onclick = card.getAttribute('onclick') || '';
+        const match = onclick.match(/toggleBookSelection\((\d+)\)/);
+        if (match) {
+            const id = parseInt(match[1]);
+            if (checked) {
+                selectedIds.add(id);
+            } else {
+                selectedIds.delete(id);
+            }
+            card.classList.toggle('selected', checked);
+            const cb = card.querySelector('.card-checkbox');
+            if (cb) cb.textContent = checked ? '✓' : '';
+        }
+    });
+    updateFloatingBar();
+}
+
+function updateFloatingBar() {
+    const count = selectedIds.size;
+    document.getElementById('selectedCount').textContent =
+        count === 0 ? 'No books selected' : `${count} book${count !== 1 ? 's' : ''} selected`;
+}
+
+async function saveLocations() {
+    const location = document.getElementById('locationInput').value.trim();
+    if (!location) {
+        document.getElementById('locationInput').focus();
+        return;
+    }
+    if (selectedIds.size === 0) return;
+
+    const res = await fetch(`${API}/bulk-location`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [...selectedIds], location })
+    });
+
+    if (res.ok) {
+        const data = await res.json();
+        // Remove saved cards from the grid
+        selectedIds.forEach(id => {
+            document.querySelectorAll('#booksGrid .book-card').forEach(card => {
+                const onclick = card.getAttribute('onclick') || '';
+                if (onclick.includes(`(${id})`)) card.remove();
+            });
+        });
+        selectedIds = new Set();
+        document.getElementById('locationInput').value = '';
+        document.getElementById('selectAllCheckbox').checked = false;
+        updateFloatingBar();
+
+        const remaining = document.querySelectorAll('#booksGrid .book-card').length;
+        if (remaining === 0) {
+            document.getElementById('emptyState').style.display = 'block';
+            document.getElementById('emptyState').querySelector('p').textContent =
+                'All done! Every book now has a location.';
+        }
+        document.getElementById('assignBanner').querySelector('.assign-banner-text span').textContent =
+            remaining > 0
+                ? `${remaining} book${remaining !== 1 ? 's' : ''} still without a location.`
+                : '';
+    }
+}
+
+function filterByGenre(genre) {
+    document.getElementById('genreFilter').value = genre;
+    loadBooks();
+}
+
+function filterByAuthor(author) {
+    document.getElementById('searchInput').value = author;
+    loadBooks();
 }
 
 function escapeHtml(str) {
@@ -510,6 +815,11 @@ async function fetchBookDetails(title, author) {
     }
 
     lastFetchedQuery = { title, author };
+}
+
+function navigateToBook(id, event) {
+    if (event.target.closest('.book-actions')) return;
+    window.location.href = `/book/${id}`;
 }
 
 function debounce(fn, delay) {

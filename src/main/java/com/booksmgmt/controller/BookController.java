@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/books")
@@ -22,8 +23,28 @@ public class BookController {
     @GetMapping
     public List<Book> getAllBooks(@RequestParam(required = false) String search,
                                  @RequestParam(required = false) String genre,
-                                 @RequestParam(required = false) String readStatus) {
-        return bookService.searchBooks(search, genre, readStatus);
+                                 @RequestParam(required = false) String readStatus,
+                                 @RequestParam(required = false, defaultValue = "false") boolean noLocation) {
+        return bookService.searchBooks(search, genre, readStatus, noLocation);
+    }
+
+    @GetMapping("/missing-location")
+    public List<Book> getMissingLocationBooks() {
+        return bookService.getMissingLocationBooks();
+    }
+
+    @PatchMapping("/bulk-location")
+    public ResponseEntity<?> bulkUpdateLocation(@RequestBody BulkLocationRequest req) {
+        if (req.location == null || req.location.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Location is required."));
+        }
+        int updated = bookService.bulkUpdateLocation(req.ids, req.location);
+        return ResponseEntity.ok(Map.of("updated", updated));
+    }
+
+    public static class BulkLocationRequest {
+        public List<Long> ids;
+        public String location;
     }
 
     @GetMapping("/genres")
@@ -31,9 +52,18 @@ public class BookController {
         return bookService.getDistinctGenres();
     }
 
+    @GetMapping("/stats")
+    public BookService.LibraryStats getStats() {
+        return bookService.getStats();
+    }
+
     @PostMapping("/batch")
-    public List<Book> createBooks(@RequestBody List<BookService.BookRequest> requests) {
-        return bookService.createBooks(requests);
+    public ResponseEntity<?> createBooks(@RequestBody List<BookService.BookRequest> requests) {
+        try {
+            return ResponseEntity.ok(bookService.createBooks(requests));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
+        }
     }
 
     @GetMapping("/{id}")
@@ -44,7 +74,7 @@ public class BookController {
     }
 
     @PostMapping
-    public Book createBook(@RequestParam("title") String title,
+    public ResponseEntity<?> createBook(@RequestParam("title") String title,
                            @RequestParam(value = "author", required = false) String author,
                            @RequestParam(value = "genre", required = false) String genre,
                            @RequestParam(value = "isbn", required = false) String isbn,
@@ -57,8 +87,12 @@ public class BookController {
                            @RequestParam(value = "notes", required = false) String notes,
                            @RequestParam(value = "coverImage", required = false) MultipartFile coverImage,
                            @RequestParam(value = "coverImageUrl", required = false) String coverImageUrl) throws IOException {
-        return bookService.createBook(title, author, genre, isbn, publisher, year, pages,
-                location, readStatus, rating, notes, coverImage, coverImageUrl);
+        try {
+            return ResponseEntity.ok(bookService.createBook(title, author, genre, isbn, publisher, year, pages,
+                    location, readStatus, rating, notes, coverImage, coverImageUrl));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(409).body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PutMapping("/{id}")
