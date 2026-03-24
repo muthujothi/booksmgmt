@@ -20,11 +20,55 @@
                 <option value="READING">Reading</option>
                 <option value="UNREAD">Unread</option>
             </select>
+            <select id="locationFilter">
+                <option value="">All Locations</option>
+                <option value="no-location">No location set</option>
+            </select>
+            <button id="assignLocationsBtn" class="btn btn-secondary">📍 Assign Locations</button>
             <button id="addBookBtn" class="btn btn-primary">+ Add Book</button>
         </div>
     </header>
 
     <main>
+        <!-- Stats Section -->
+        <section id="statsSection" class="stats-section" style="display:none;">
+            <div class="stats-summary">
+                <div class="stat-tile stat-tile--total">
+                    <span class="stat-number" id="statTotal">0</span>
+                    <span class="stat-label">Total Books</span>
+                </div>
+                <div class="stat-tile stat-tile--read">
+                    <span class="stat-number" id="statRead">0</span>
+                    <span class="stat-label">Read</span>
+                </div>
+                <div class="stat-tile stat-tile--reading">
+                    <span class="stat-number" id="statReading">0</span>
+                    <span class="stat-label">Reading</span>
+                </div>
+                <div class="stat-tile stat-tile--unread">
+                    <span class="stat-number" id="statUnread">0</span>
+                    <span class="stat-label">Unread</span>
+                </div>
+            </div>
+            <div class="stats-row" id="genreStatsRow" style="display:none;">
+                <h3 class="stats-row-title">Genres</h3>
+                <div class="stats-chips" id="genreChips"></div>
+            </div>
+            <div class="stats-row" id="authorStatsRow" style="display:none;">
+                <h3 class="stats-row-title">Top Authors</h3>
+                <div class="stats-chips" id="authorChips"></div>
+            </div>
+        </section>
+
+        <!-- Assign Locations Banner -->
+        <div id="assignBanner" class="assign-banner" style="display:none;">
+            <div class="assign-banner-text">
+                <strong>📍 Assign Locations</strong>
+                <span id="assignBannerSubtext"></span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="exitAssignMode()">✕ Exit</button>
+        </div>
+
         <div id="booksGrid" class="books-grid"></div>
         <div id="emptyState" class="empty-state" style="display:none;">
             <p>No books found. Add your first book to get started!</p>
@@ -132,6 +176,18 @@
                 <button class="btn btn-danger" id="confirmDelete">Delete</button>
             </div>
         </div>
+    </div>
+
+    <!-- Floating Action Bar (Assign Locations mode) -->
+    <div id="floatingBar" class="floating-bar" style="display:none;">
+        <label class="floating-bar-select-all">
+            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)">
+            Select all
+        </label>
+        <span id="selectedCount" class="floating-bar-count">0 selected</span>
+        <input type="text" id="locationInput" class="floating-bar-input" placeholder="e.g. Shelf A, Room 2...">
+        <button class="btn btn-primary" onclick="saveLocations()">Save</button>
+        <button class="btn btn-secondary" onclick="exitAssignMode()">Cancel</button>
     </div>
 
     <script src="/js/app.js"></script>

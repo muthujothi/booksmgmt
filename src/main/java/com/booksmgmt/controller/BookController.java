@@ -23,13 +23,38 @@ public class BookController {
     @GetMapping
     public List<Book> getAllBooks(@RequestParam(required = false) String search,
                                  @RequestParam(required = false) String genre,
-                                 @RequestParam(required = false) String readStatus) {
-        return bookService.searchBooks(search, genre, readStatus);
+                                 @RequestParam(required = false) String readStatus,
+                                 @RequestParam(required = false, defaultValue = "false") boolean noLocation) {
+        return bookService.searchBooks(search, genre, readStatus, noLocation);
+    }
+
+    @GetMapping("/missing-location")
+    public List<Book> getMissingLocationBooks() {
+        return bookService.getMissingLocationBooks();
+    }
+
+    @PatchMapping("/bulk-location")
+    public ResponseEntity<?> bulkUpdateLocation(@RequestBody BulkLocationRequest req) {
+        if (req.location == null || req.location.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Location is required."));
+        }
+        int updated = bookService.bulkUpdateLocation(req.ids, req.location);
+        return ResponseEntity.ok(Map.of("updated", updated));
+    }
+
+    public static class BulkLocationRequest {
+        public List<Long> ids;
+        public String location;
     }
 
     @GetMapping("/genres")
     public List<String> getGenres() {
         return bookService.getDistinctGenres();
+    }
+
+    @GetMapping("/stats")
+    public BookService.LibraryStats getStats() {
+        return bookService.getStats();
     }
 
     @PostMapping("/batch")
