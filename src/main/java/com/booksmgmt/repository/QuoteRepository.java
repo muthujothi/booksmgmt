@@ -10,4 +10,6 @@ import java.util.List;
 public interface QuoteRepository extends JpaRepository<Quote, Long> {
 
     List<Quote> findByBookIdOrderByPageNumberAsc(Long bookId);
+
+    void deleteByBookId(Long bookId);
 }

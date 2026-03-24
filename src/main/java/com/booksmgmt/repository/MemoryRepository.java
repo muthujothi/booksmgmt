@@ -10,4 +10,6 @@ import java.util.List;
 public interface MemoryRepository extends JpaRepository<Memory, Long> {
 
     List<Memory> findByBookIdOrderByCreatedAtDesc(Long bookId);
+
+    void deleteByBookId(Long bookId);
 }
