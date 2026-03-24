@@ -15,4 +15,7 @@ public interface BookRepository extends JpaRepository<Book, Long> {
 
     boolean existsByTitleIgnoreCase(String title);
 
+    @Query("SELECT b FROM Book b WHERE b.location IS NULL OR b.location = '' ORDER BY b.id DESC")
+    List<Book> findBooksWithMissingLocation();
+
 }
